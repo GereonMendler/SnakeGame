@@ -2,7 +2,7 @@ from gameobjects import GameObject
 from move import Move
 from asyncio.queues import PriorityQueue, Queue
 from move import Direction
-from tkinter.constants import CURRENT
+from datetime import datetime
 
 
 class Agent:
@@ -91,7 +91,9 @@ class Agent:
                         fscore[neighbour] = pow(self.cost_estimate(neighbour), 2) + pow(gscore[neighbour], 2)
                         open.add(neighbour)
                         cameFrom[neighbour] = current
-                        
+        
+        altGoal = self.get_node_highest_gscore(closed, gscore)
+        self.reconstruct_path(cameFrom, altGoal)
         return "failure"
             
     def get_node_lowest_fscore(self, openSet, fscore):
@@ -104,6 +106,16 @@ class Agent:
                 
         return minNode
         
+    def get_node_highest_gscore(self, closedSet, gscore):
+        max = 0 
+        maxNode = None
+        for node in closedSet:
+            if gscore[node] > max:
+                maxNode = node
+                max = gscore[node]
+                
+        return maxNode
+    
     def get_neighbours(self, node, direction, board, g):
         successors = Queue()
         x, y = node
@@ -191,6 +203,7 @@ class Agent:
         
         if (turns_alive == 0):
             self.current = self.find_pos(board)
+            self.timestamp = datetime.now()
         
         if (True or self.path.empty()):
             self.find_food(board)
@@ -248,4 +261,6 @@ class Agent:
         it will be called for a fresh snake. Use this function to clean up variables specific to the life of a single
         snake or to host a funeral.
         """
+        diff = datetime.now() - self.timestamp
+        print(diff)
         pass
