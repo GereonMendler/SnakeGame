@@ -5,10 +5,10 @@ from board import Board
 root = None
 canvas = None
 scale = None
-canvas_width = 800
-canvas_height = 800
+canvas_width = 600
+canvas_height = 600
 
-tics_per_second = 100
+tics_per_second = 250
 
 """ BEGIN GAME SETTINGS """
 # Board width and height
