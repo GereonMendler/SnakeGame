@@ -1,6 +1,6 @@
 from gameobjects import GameObject
 from move import Move
-from asyncio.queues import PriorityQueue, Queue
+from asyncio.queues import Queue
 from move import Direction
 from datetime import datetime
 
@@ -9,20 +9,43 @@ class Agent:
     
     current = None
     path = Queue()
-    foodq = Queue()
+    foods = set()
+    altPath = False
     
-    def find_food(self, board):    
-        self.foodq = Queue()    
+    def find_food(self, board, thr):    
+        self.foods.clear()    
         # find food on map
         x = 0
         y = 0
         while x < (len(board)):
             y = 0
             while y < (len(board)):
-                if (board[x][y] == GameObject.FOOD):
-                    self.foodq.put_nowait((x, y))
+                if board[x][y] == GameObject.FOOD:
+#                     if (self.good_food(board, (x, y), thr) 
+#                     or self.manhatten_distance((x, y), self.current) <= 1):
+                    self.foods.add((x, y))
                 y = y + 1
             x = x + 1
+        if len(self.foods) == 0:
+            self.find_food(board, thr - 1)
+    
+    def good_food(self, board, food, thr):
+        x, y = food
+        empty = 0
+        if x < len(board) - 1:
+            if board[x + 1][y] == GameObject.EMPTY or board[x + 1][y] == GameObject.FOOD:
+                empty += 1
+        if x > 0:
+            if board[x - 1][y] == GameObject.EMPTY or board[x - 1][y] == GameObject.FOOD:
+                empty += 1
+        if y < len(board) - 1:
+            if board[x][y + 1] == GameObject.EMPTY or board[x][y + 1] == GameObject.FOOD:
+                empty += 1
+        if y > 0:
+            if board[x][y - 1] == GameObject.EMPTY or board[x][y - 1] == GameObject.FOOD:
+                empty += 1   
+        
+        return empty >= thr
             
     def find_pos (self, board):
         # find food on map
@@ -37,15 +60,13 @@ class Agent:
             x = x + 1
             
     def astar_search(self, board, start, direction):
-        # current iteration of astar
-        i = 0
-        
+        self.altPath = False        
         # set of evaluated nodes
-        closed = set()
+        closedSet = set()
         
         # the set of discovered nodes
         # initially only contains the start current
-        open = set()
+        openSet = set()
         
         # backtracking map
         cameFrom = {}
@@ -55,64 +76,65 @@ class Agent:
         gscore = {}
         
         # add start to openlist
-        open.add(start)
+        openSet.add(start)
         gscore[start] = 0
         fscore[start] = self.cost_estimate(start)
         
         # search
-        while len(open) > 0:
+        while len(openSet) > 0:
             
-            current = self.get_node_lowest_fscore(open, fscore)
+            current = self.get_node_lowest_fscore(openSet, fscore)
             x, y = current
         
             # check if goal
-            if board[x][y] == GameObject.FOOD:
+            if current in self.foods:
                 self.reconstruct_path(cameFrom, current)
                 return
             
-            # remove from open nodes
-            open.discard(current)
-            # add to closed nodes
-            closed.add(current)
+            # remove from openSet nodes
+            openSet.discard(current)
+            # add to closedSet nodes
+            closedSet.add(current)
             
             # get neighbours
             neighbours = self.get_neighbours(current, direction, board, gscore[current])
             for neighbour in neighbours._queue:
-                # skip if current is already closed
-                if neighbour in closed:
+                # skip if current is already closedSet
+                if neighbour in closedSet:
                     continue
                 
                 # check if valid field
                 x, y = neighbour
                 if board[x][y] == GameObject.EMPTY or board[x][y] == GameObject.FOOD:
                     # add to openlist if first discovered
-                    if neighbour not in open and neighbour not in closed:
+                    if neighbour not in openSet and neighbour not in closedSet:
                         gscore[neighbour] = gscore[current] + 1
                         fscore[neighbour] = pow(self.cost_estimate(neighbour), 2) + pow(gscore[neighbour], 2)
-                        open.add(neighbour)
+                        openSet.add(neighbour)
                         cameFrom[neighbour] = current
         
-        altGoal = self.get_node_highest_gscore(closed, gscore)
+        altGoal = self.get_node_highest_gscore(closedSet, gscore)
         self.reconstruct_path(cameFrom, altGoal)
+        self.altPath = True
         return "failure"
             
     def get_node_lowest_fscore(self, openSet, fscore):
-        min = 9999999999 
+        minVal = 9999999999 
         minNode = None
         for node in openSet:
-            if fscore[node] < min:
+            if fscore[node] < minVal:
                 minNode = node
-                min = fscore[node]
+                minVal = fscore[node]
                 
         return minNode
         
     def get_node_highest_gscore(self, closedSet, gscore):
-        max = 0 
+        maxVal = 0 
         maxNode = None
         for node in closedSet:
-            if gscore[node] > max:
+            if gscore[node] > maxVal:
                 maxNode = node
-                max = gscore[node]
+                maxVal = gscore[node]
                 
         return maxNode
     
@@ -152,19 +174,23 @@ class Agent:
         
     def cost_estimate(self, node):
         res = 100000
-        node_x, node_y = node
-        for val in self.foodq._queue:
-            x, y = val
-            x = node_x - x
-            y = node_y - y
-            if (x < 0):
-                x = x * -1
-            if (y < 0):
-                y = y * -1
-            if (x + y < res):
-                res = x + y
+        for food in self.foods:
+            distance = self.manhatten_distance(node, food)
+            if (distance < res):
+                res = distance
         return res;
     
+    def manhatten_distance(self, a, b):
+        x1, y1 = a
+        x2, y2 = b
+        x = x1 - x2
+        y = y1 - y2
+        if (x < 0):
+            x = x * -1
+        if (y < 0):
+            y = y * -1
+        return x + y
+            
     def get_move(self, board, score, turns_alive, turns_to_starve, direction):
         """This function behaves as the 'brain' of the snake. You only need to change the code in this function for
         the project. Every turn the agent needs to return a move. This move will be executed by the snake. If this
@@ -187,7 +213,7 @@ class Agent:
         :param turns_alive: The number of turns (as integer) the current snake is alive.
 
         :param turns_to_starve: The number of turns left alive (as integer) if the snake does not eat. If this number
-        reaches 1 and there is not eaten the next turn, the snake dies. If the value is equal to -1, then the option
+        reaches 1 and there is not eaten the nextStep turn, the snake dies. If the value is equal to -1, then the option
         is not enabled and the snake can not starve.
 
         :param direction: The direction the snake is currently facing. This can be either Direction.NORTH,
@@ -201,12 +227,12 @@ class Agent:
         move left is made, the snake will go one block to the left and change its direction to west.
         """
         
-        if (turns_alive == 0):
+        if turns_alive == 0:
             self.current = self.find_pos(board)
             self.timestamp = datetime.now()
         
-        if (True or self.path.empty()):
-            self.find_food(board)
+        if True or self.altPath or self.path.empty():
+            self.find_food(board, 3)
             
             self.path = Queue()
             
@@ -216,12 +242,12 @@ class Agent:
         if (self.path.empty()):
             return Move.STRAIGHT
         
-        next = self.path.get_nowait()
+        nextStep = self.path.get_nowait()
         # get individuals for comparison
-        next_x, next_y = next
+        next_x, next_y = nextStep
         x, y = self.current
-        # update current pos for next turn
-        self.current = next
+        # update current pos for nextStep turn
+        self.current = nextStep
         # calc differences
         diffx = x - next_x
         diffy = y - next_y
