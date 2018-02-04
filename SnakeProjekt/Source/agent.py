@@ -8,9 +8,10 @@ from datetime import datetime
 class Agent:
     
     current = None
-    path = Queue()
+    path = []
     foods = set()
     altPath = False
+    count = 0
     
     def find_food(self, board, thr):    
         self.foods.clear()    
@@ -21,9 +22,9 @@ class Agent:
             y = 0
             while y < (len(board)):
                 if board[x][y] == GameObject.FOOD:
-#                     if (self.good_food(board, (x, y), thr) 
-#                     or self.manhatten_distance((x, y), self.current) <= 1):
-                    self.foods.add((x, y))
+                    if (self.good_food(board, (x, y), 2) 
+                    or self.manhatten_distance((x, y), self.current) <= 1):
+                        self.foods.add((x, y))
                 y = y + 1
             x = x + 1
         if len(self.foods) == 0:
@@ -170,7 +171,7 @@ class Agent:
             store.append(current)
             current = cameFrom.__getitem__(current)
         while (len(store) != 0):
-            self.path.put_nowait(store.pop())
+            self.path.append(store.pop())
         
     def cost_estimate(self, node):
         res = 100000
@@ -230,19 +231,20 @@ class Agent:
         if turns_alive == 0:
             self.current = self.find_pos(board)
             self.timestamp = datetime.now()
+            self.count+=1
         
-        if True or self.altPath or self.path.empty():
+        if True or self.altPath or len(self.path) == 0:
             self.find_food(board, 3)
             
-            self.path = Queue()
+            self.path.clear()
             
             self.astar_search(board, self.current, direction)
     
         # temp failsafe
-        if (self.path.empty()):
+        if (len(self.path) == 0):
             return Move.STRAIGHT
         
-        nextStep = self.path.get_nowait()
+        nextStep = self.path.pop(0)
         # get individuals for comparison
         next_x, next_y = nextStep
         x, y = self.current
@@ -281,12 +283,14 @@ class Agent:
             else:
                 return Move.RIGHT
 
-    def on_die(self):
+    def on_die(self, score, tics, board):
         """This function will be called whenever the snake dies. After its dead the snake will be reincarnated into a
         new snake and its life will start over. This means that the next time the get_move function is called,
         it will be called for a fresh snake. Use this function to clean up variables specific to the life of a single
         snake or to host a funeral.
         """
         diff = datetime.now() - self.timestamp
-        print(diff)
+        file = open("results.txt","a")
+        file.write("{}\t{}\t{}\t{}\t{}\n".format(self.count,len(board),diff.total_seconds(),score,tics))
+        print("{}\t{}".format(self.count,diff.total_seconds()))
         pass

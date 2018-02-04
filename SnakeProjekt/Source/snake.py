@@ -61,7 +61,7 @@ class Snake:
 
     def reset(self, board):
         print("Score achieved: {}. Turns it took: {}".format(self.score, self.tics_alive))
-        self.agent.on_die()
+        self.agent.on_die(self.score, self.tics_alive, board.get_copy())
         self.tics_alive = 0
         self.score = 0
         self.direction = Direction.NORTH
